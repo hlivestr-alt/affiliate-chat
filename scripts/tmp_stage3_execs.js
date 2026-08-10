@@ -1,0 +1,1 @@
+'use strict';const sqlite3=require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');const db=new sqlite3.Database('/home/node/.n8n/database.sqlite',sqlite3.OPEN_READONLY);db.all("select id,workflowId,status,startedAt,stoppedAt,deletedAt from execution_entity where id between 15865 and 15920 order by id",(e,r)=>{console.log(JSON.stringify(r,null,2));db.close()});

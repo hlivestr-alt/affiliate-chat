@@ -1,0 +1,54 @@
+name: affiliate-chat
+
+services:
+  n8n:
+    image: n8nio/n8n:2.29.9
+    container_name: n8n-local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    env_file:
+      - .env
+      - .env.phase1
+    environment:
+      N8N_HOST: n8n.proyaofficial.com
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://n8n.proyaofficial.com/
+      N8N_EDITOR_BASE_URL: https://n8n.proyaofficial.com/
+      N8N_PROXY_HOPS: "1"
+      N8N_SECURE_COOKIE: "true"
+      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      N8N_RESTRICT_FILE_ACCESS_TO: /clips;/clips_whatsapp;/clips_whatsapp_test
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_SKIP_AUTH_ON_OAUTH_CALLBACK: "true"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto,node:crypto
+      NODES_EXCLUDE: "[]"
+      GENERIC_TIMEZONE: Asia/Shanghai
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - "D:/output_clips/export_batches:/clips:ro"
+      - "D:/output_clips/export_batches_whatsapp:/clips_whatsapp:ro"
+      - "D:/output_clips/whatsapp_test:/clips_whatsapp_test:ro"
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.0
+    container_name: affiliate-chat-cloudflared
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_data:
+    external: true

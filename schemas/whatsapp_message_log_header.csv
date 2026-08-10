@@ -1,0 +1,1 @@
+whatsapp_message_id,recipient_number,message_type,template_name,source_workflow,source_reference,api_status,accepted_at,current_status,status_timestamp,conversation_json,pricing_json,errors_json,error_code,error_title,error_message,error_details,processed_statuses,status_history_json,updated_at

@@ -1,0 +1,16 @@
+# n8n Variables
+
+Create these in n8n before testing the workflow.
+
+```text
+GOOGLE_DRIVE_CLIPS_FOLDER_ID=14iW6-YOaCAhNSWVlLOgT-Rpuavctvxfy
+AFFILIATE_TRACKER_SPREADSHEET_ID=1eyA1XRNZU0usuii801IrJCJHp8oCh2XjlfROrzzvpwE
+AFFILIATE_TRACKER_SHEET_NAME=Affiliate Assignments
+TIKTOK_SHOP_ID=7496312902518999619
+TIKTOK_SHOP_CIPHER=ROW_PtHD-wAAAABkDBDzxOcJutzejF8e76tL
+TIKTOK_ACCESS_TOKEN=ROW__ZTK6QAAAADZUl8Zciwxsjb544aRWrCAu2XSgYETIYChBMG9em3YkaKShf5BIcZZ8Ai6OUEUctzhWacmSeJdT65HwE3VQRQbWGiPoJ7SKL8MXoqBQZwbcvY2BgzprpyhDThmtiM56e8
+TIKTOK_APP_KEY=6k3e7da28rs3i
+TIKTOK_APP_SECRET=86b403e4f50e4e3332ca91164002b82232aebb36
+```
+
+Use the existing Google Drive OAuth2 credential on Drive nodes and the existing Google Sheets credential on Sheets nodes.

@@ -1,0 +1,1 @@
+'use strict';const sqlite3=require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');const db=new sqlite3.Database('/home/node/.n8n/database.sqlite',sqlite3.OPEN_READONLY);db.get("select data from execution_data where executionId=15858",(e,r)=>{console.log(r.data);db.close()});

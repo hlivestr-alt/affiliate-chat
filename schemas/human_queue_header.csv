@@ -1,0 +1,1 @@
+case_id,created_at,updated_at,status,reason,conversation_id,username,whatsapp_number,source_message_id,message_text,predicted_intent,confidence,batch_number,delivery_step,retry_count,last_error,assignee,resolution

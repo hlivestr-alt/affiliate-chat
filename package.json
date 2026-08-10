@@ -1,0 +1,16 @@
+{
+  "name": "affiliate-drive-handoff",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Google Drive rename-based affiliate handoff helpers for n8n.",
+  "type": "commonjs",
+  "scripts": {
+    "build:workflow": "node scripts/build_n8n_workflow.js",
+    "build:distribution": "node scripts/build_affiliate_distribution.js",
+    "deploy:distribution:staging": "node scripts/deploy_affiliate_distribution.js --refresh-inactive --setup-sheets",
+    "test": "node scripts/build_n8n_workflow.js && node scripts/build_affiliate_distribution.js && node scripts/build_whatsapp_observability.js n8n/exports/live-backups/before-observability-20260804T033447Z && node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+npm-debug.log*
+n8n/imports/*.json
+n8n/db/
+n8n/exports/
+reports/*.json
+.pytest_cache/
+__pycache__/
+*.py[cod]
