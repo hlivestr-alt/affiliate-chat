@@ -15,7 +15,7 @@ const LEADS = [
   "files_sent", "files_delivered", "files_failed", "files_sent_at",
   "files_delivered_at", "posted_confirmed_at", "last_whatsapp_message_id",
   "last_inbound_at", "last_intent", "last_intent_confidence", "last_error",
-  "updated_at", "wa_id", "last_inbound_message_id", "window_expires_at"
+  "updated_at", "wa_id", "last_inbound_message_id", "window_expires_at", "delivery_state"
 ];
 const MESSAGES = [
   "whatsapp_message_id", "recipient_number", "message_type", "template_name",
@@ -118,6 +118,34 @@ test("a new inbound refreshes an existing window without implying distribution",
   })]))[0].json;
   assert.ok(Date.parse(second.window_expires_at) > Date.parse(first.window_expires_at));
   assert.equal(second.action, "refresh_only");
+});
+
+test("inbound conversation updates preserve active delivery lifecycle state", async () => {
+  const inbound = event({ message_text: "Link produk nya", whatsapp_message_id: "wamid.in.question" });
+  const existing = row(LEADS, {
+    username: "creator.name", whatsapp_number: inbound.whatsapp_number, wa_id: inbound.wa_id,
+    conversation_id: "wa:628111111111", state: "distribution_pending",
+    last_intent: "distribution_intent", delivery_state: "delivery_in_progress",
+    batch_number: "6941", files_sent: "4", files_expected: "15"
+  });
+  const result = (await resolveInbound(inbound, [existing]))[0].json;
+  assert.equal(result.state, "awaiting_username");
+  assert.equal(result.last_intent, "clarification_pending");
+  assert.equal(result.delivery_state, "delivery_in_progress");
+  assert.equal(result.batch_number, "6941");
+  assert.equal(result.files_sent, "4");
+});
+
+test("completed delivery is not restarted by a generic continue reply", async () => {
+  const inbound = event({ message_text: "lanjut", whatsapp_message_id: "wamid.in.continue" });
+  const existing = row(LEADS, {
+    username: "creator.name", whatsapp_number: inbound.whatsapp_number, wa_id: inbound.wa_id,
+    conversation_id: "wa:628111111111", state: "distribution_pending",
+    last_intent: "distribution_intent", delivery_state: "files_sent"
+  });
+  const result = (await resolveInbound(inbound, [existing]))[0].json;
+  assert.notEqual(result.action, "confirmation");
+  assert.equal(result.delivery_state, "files_sent");
 });
 
 test("text send guard allows an active matching window and fails closed when expired", async () => {

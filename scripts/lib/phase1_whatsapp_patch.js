@@ -124,7 +124,7 @@ function patchReply(workflow, context) {
   for (const item of statusNodes) {
     const readOnlyRequest = !item.parameters?.method || item.parameters.method === "GET";
     if (readOnlyRequest && item.name.includes("Leads") && item.parameters.url) {
-      item.parameters.url = valuesUrl(config, sheets.leads, "A:AE");
+      item.parameters.url = valuesUrl(config, sheets.leads, "A:AF");
     }
     if (readOnlyRequest && item.name.includes("Delivery Log") && item.parameters.url) {
       item.parameters.url = valuesUrl(config, sheets.delivery, "A:R");
@@ -150,7 +150,7 @@ function patchReply(workflow, context) {
     'return [{json:$("Restore Inbound before Durable Claim").first().json}];');
   const duplicateStop = noOp("Done: Duplicate Inbound Ignored", [-20, 340]);
   const readLeads = google("Read Leads for Inbound Resolution", [860, 20], {
-    url: valuesUrl(config, sheets.leads, "A:AE"), options: {}
+    url: valuesUrl(config, sheets.leads, "A:AF"), options: {}
   }, googleCredential);
   const resolve = code("Resolve Inbound Affiliate and Intent", [200, 80], load(root, "phase1-resolve-lead.js"));
   const conflict = ifNode("IF Affiliate Match Conflict", [420, 80], "={{ $json.route === 'queue' }}");
@@ -158,13 +158,13 @@ function patchReply(workflow, context) {
   const appendLeadGate = ifNode("IF Append New WhatsApp Lead", [640, 140], "={{ $json.lead_write_action === 'append' }}");
   const appendLead = google("Append New WhatsApp Lead", [860, 80], {
     method: "POST",
-    url: `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A%3AAE:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    url: `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A%3AAF:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     sendBody: true, specifyBody: "json",
     jsonBody: '={{ JSON.stringify({ majorDimension: "ROWS", values: [$json.lead_row_values] }) }}', options: {}
   }, googleCredential);
   const updateLead = google("Refresh Existing WhatsApp Lead Window", [860, 200], {
     method: "PUT",
-    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A{{$json.row_number}}%3AAE{{$json.row_number}}?valueInputOption=RAW`,
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A{{$json.row_number}}%3AAF{{$json.row_number}}?valueInputOption=RAW`,
     sendBody: true, specifyBody: "json",
     jsonBody: '={{ JSON.stringify({ majorDimension: "ROWS", values: [$json.lead_row_values] }) }}', options: {}
   }, googleCredential);
@@ -173,7 +173,7 @@ function patchReply(workflow, context) {
   const needsReply = ifNode("IF Guarded Text Reply Required", [1300, 140],
     "={{ ['clarification','confirmation'].includes($json.action) }}");
   const readGuard = google("Read Leads Immediately Before Text Send", [1520, 40], {
-    url: valuesUrl(config, sheets.leads, "A:AE"), options: {}
+    url: valuesUrl(config, sheets.leads, "A:AF"), options: {}
   }, googleCredential);
   const guard = code("Guard Phase 1 Text Send", [1740, 40], load(root, "phase1-send-guard.js"));
   const allowed = ifNode("IF Text Send Authorized", [1960, 40], "={{ $json.outbound_allowed === true }}");
@@ -202,7 +202,7 @@ const headers=(values[0]||[]).map(text); const record={...source,state:"waiting_
 return [{json:{...source,row_number:source.row_number,lead_row_values:headers.map((name)=>text(record[name]))}}];`);
   const updateBlocked = google("Mark Waiting after Blocked Text", [2400, 160], {
     method: "PUT",
-    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A{{$json.row_number}}%3AAE{{$json.row_number}}?valueInputOption=RAW`,
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.leads)}!A{{$json.row_number}}%3AAF{{$json.row_number}}?valueInputOption=RAW`,
     sendBody: true, specifyBody: "json",
     jsonBody: '={{ JSON.stringify({ majorDimension: "ROWS", values: [$json.lead_row_values] }) }}', options: {}
   }, googleCredential);
@@ -271,7 +271,7 @@ function patchDelivery(workflow, context) {
       item.waitBetweenTries = 10000;
     }
     if (readOnlyRequest && item.parameters?.url && item.name.includes("Leads")) {
-      item.parameters.url = valuesUrl(config, sheets.leads, "A:AE");
+      item.parameters.url = valuesUrl(config, sheets.leads, "A:AF");
     }
     if (readOnlyRequest && item.parameters?.url && item.name.includes("Delivery Log")) {
       item.parameters.url = valuesUrl(config, sheets.delivery, "A:R");
@@ -341,34 +341,44 @@ function patchDelivery(workflow, context) {
 const source=$("Guard Cached Media Upload").item; return [{json:{...source.json,media_id:source.json.existing_media_id,uploaded_at:source.json.existing_uploaded_at,upload_success:true,reused_media_upload:true},binary:source.binary}];`);
   const sendGuard = code("Guard Cached Clip Send", [2320, 120], load(root, "guard-cached-delivery-send.js"));
   const sendAllowed = ifNode("IF Cached Clip Send Authorized", [2420, 120], "={{ $json.outbound_allowed === true }}");
+  const prepareInFlight = code("Prepare In-Flight Send Claim", [2520, 100], load(root, "prepare-in-flight-send-claim.js"));
+  const persistInFlight = google("Persist In-Flight Send Claim", [2620, 100], {
+    method: "PUT",
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.delivery)}!A{{$json.delivery_log_row_number}}%3AR{{$json.delivery_log_row_number}}?valueInputOption=RAW`,
+    sendBody: true, specifyBody: "json",
+    jsonBody: '={{ JSON.stringify({ majorDimension: "ROWS", values: [$json.in_flight_row_values] }) }}', options: {}
+  }, googleCredential, retrySheets);
+  const restoreInFlight = code("Restore Clip after In-Flight Claim", [2720, 100], String.raw`
+const source=$("Prepare In-Flight Send Claim").item; return [{json:source.json,binary:source.binary}];`);
   const blocked = code("Prepare Blocked Clip Result", [2640, 280], String.raw`
 function text(v){return v==null?"":String(v).trim();} const source=$input.first().json; const now=new Date().toISOString();
 const error=text(source.blocked_log_code)+":"+text(source.blocked_reason); const row=[source.delivery_key,source.conversation_id,source.whatsapp_number,source.batch_number,source.file_index,source.file_name,source.media_id||"","","failed",source.attempts||1,source.uploaded_at||"","","",now,error,now,"failed",""];
 return [{json:{...source,send_success:false,send_state:"failed",state:"failed",last_error:error,failed_at:now,updated_at:now,delivery_row_values:row}}];`);
   const restoreFailure = code("Restore Failed Delivery Result", [4000, -100], String.raw`let source; try { source=$("Parse Video Send").item.json; } catch {} if(!source||typeof source.send_success!=="boolean") source=$("Prepare Upload Failure").item.json; return [{json:source}];`);
+  const readImmediate = google("Read Delivery Row after Meta Success", [2920, -440], {
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.delivery)}!A{{$json.delivery_log_row_number}}%3AR{{$json.delivery_log_row_number}}`, options: {}
+  }, googleCredential, retrySheets);
+  const validateImmediate = code("Validate Immediate Successful Send", [3040, -440], load(root, "validate-immediate-successful-send.js"));
+  const ifImmediateWrite = ifNode("IF Successful Send Persistence Required", [3160, -440], "={{ $json.immediate_persistence_required === true }}");
+  const persistImmediate = google("Persist Successful Clip Immediately", [3280, -500], {
+    method: "PUT",
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.delivery)}!A{{$json.delivery_log_row_number}}%3AR{{$json.delivery_log_row_number}}?valueInputOption=RAW`,
+    sendBody: true, specifyBody: "json",
+    jsonBody: '={{ JSON.stringify({ majorDimension: "ROWS", values: [$json.delivery_row_values] }) }}', options: {}
+  }, googleCredential, retrySheets);
+  const readImmediateBack = google("Read Back Persisted Successful Clip", [3400, -500], {
+    url: `=https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${encodeURIComponent(sheets.delivery)}!A{{$json.delivery_log_row_number}}%3AR{{$json.delivery_log_row_number}}`, options: {}
+  }, googleCredential, retrySheets);
+  const confirmImmediate = code("Confirm Successful Clip Durable", [3520, -500], load(root, "confirm-successful-clip-durable.js"));
+  const restoreImmediate = code("Restore Idempotent Successful Clip", [3400, -380], String.raw`
+const source=$("Validate Immediate Successful Send").item.json; return [{json:{...source,immediate_persistence_verified:true,immediate_persistence_result:"already_durable"}}];`);
   const prepareTracking = code("Prepare Batched Delivery Tracking", [1800, 40], load(root, "prepare-batched-delivery-tracking.js"));
-  const recoveryColumns = ["queue_id", "status", "workflow_id", "execution_id", "conversation_id", "phone_number", "batch_number", "spreadsheet_id", "delivery_tab", "message_tab", "delivery_updates_json", "message_rows_json", "created_at", "updated_at", "attempts", "last_error"];
-  const ensureRecovery = dataTableCreate("Ensure Outbound Log Recovery Table", [1980, 40], "wa_outbound_log_recovery", recoveryColumns);
-  const restoreForQueue = code("Restore Tracking before Durable Queue", [2160, 40], String.raw`
-const source=$("Prepare Batched Delivery Tracking").first().json; const ctx=$("Restore and Validate Delivery Context").first().json; const now=new Date().toISOString();
-const queueId="delivery:"+String(ctx.conversation_id||"")+":"+String(ctx.batch_number||"")+":"+String($execution.id||"");
-return [{json:{...source,recovery_queue_id:queueId,recovery_created_at:now,recovery_conversation_id:String(ctx.conversation_id||""),recovery_phone_number:String(ctx.whatsapp_number||""),recovery_batch_number:String(ctx.batch_number||"")}}];`);
-  const storeRecovery = dataTableInsert("Store Durable Outbound Log Payload", [2340, 40], "wa_outbound_log_recovery", {
-    queue_id: "={{ $json.recovery_queue_id }}", status: "pending", workflow_id: "AffWaDelivery2026",
-    execution_id: "={{ String($execution.id || '') }}", conversation_id: "={{ $json.recovery_conversation_id }}",
-    phone_number: "={{ $json.recovery_phone_number }}", batch_number: "={{ $json.recovery_batch_number }}",
-    spreadsheet_id: config.spreadsheetId, delivery_tab: sheets.delivery, message_tab: sheets.messages,
-    delivery_updates_json: "={{ JSON.stringify($json.delivery_updates) }}", message_rows_json: "={{ JSON.stringify($json.message_rows) }}",
-    created_at: "={{ $json.recovery_created_at }}", updated_at: "={{ $json.recovery_created_at }}", attempts: "0", last_error: ""
-  }, recoveryColumns);
-  const restoreTracking = code("Restore Tracking Batch", [2520, 40], String.raw`
-const source=$("Restore Tracking before Durable Queue").first().json; return [{json:{...source,recovery_row_id:String($json.id||"")}}];`);
   const writeDelivery = google("Batch Write Delivery Results", [2020, 40], {
     method: "POST", url: `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values:batchUpdate`, sendBody: true,
     specifyBody: "json", jsonBody: '={{ JSON.stringify({ valueInputOption: "RAW", data: $json.delivery_updates }) }}', options: {}
   }, googleCredential, { ...retrySheets, continueOnFail: true });
   const captureDeliveryWrite = code("Capture Delivery Batch Write Result", [2900, 40], String.raw`
-const source=$("Restore Tracking Batch").first().json; const response=$input.first().json||{};
+const source=$("Prepare Batched Delivery Tracking").first().json; const response=$input.first().json||{};
 const error=response.error?JSON.stringify(response.error):""; return [{json:{...source,delivery_write_error:error}}];`);
   const hasMessages = ifNode("IF Batched Messages Exist", [3080, 40], "={{ Number($json.message_count) > 0 }}");
   const appendMessages = google("Append Message Results Batch", [2680, -20], {
@@ -383,18 +393,14 @@ const error=response.error?JSON.stringify(response.error):""; return [{json:{...
   const prepareRecoveryStatus = code("Prepare Durable Queue Status", [3620, 40], String.raw`
 const source=$input.first().json; const errors=[source.delivery_write_error,source.message_write_error].filter(Boolean);
 return [{json:{...source,recovery_status:errors.length?"pending":"flushed",recovery_last_error:errors.join(" | "),recovery_updated_at:new Date().toISOString()}}];`);
-  const updateRecovery = dataTableUpdate("Update Durable Outbound Log Queue", [3800, 40], "wa_outbound_log_recovery", "queue_id", "={{ $json.recovery_queue_id }}", {
-    status: "={{ $json.recovery_status }}", updated_at: "={{ $json.recovery_updated_at }}",
-    attempts: "1", last_error: "={{ $json.recovery_last_error }}"
-  }, recoveryColumns);
-  updateRecovery.continueOnFail = true;
   const summary = code("Prepare Cached Delivery Summary", [3980, 40], load(root, "prepare-cached-delivery-summary.js"));
   const updateFinal = old.get("Update Final Send State");
   Object.assign(updateFinal, retrySheets, { continueOnFail: true });
   workflow.nodes.push(prepareClaims, writeClaims, restoreClaims, uploadGuard, uploadAllowed, reuseUpload, restoreUpload, sendGuard, sendAllowed,
-    waitClaims, rereadClaims, blocked, restoreFailure, prepareTracking, ensureRecovery, restoreForQueue, storeRecovery,
-    restoreTracking, writeDelivery, captureDeliveryWrite, hasMessages, appendMessages, captureMessageWrite,
-    noMessages, prepareRecoveryStatus, updateRecovery, summary);
+    prepareInFlight, persistInFlight, restoreInFlight, readImmediate, validateImmediate, ifImmediateWrite, persistImmediate,
+    readImmediateBack, confirmImmediate, restoreImmediate, waitClaims, rereadClaims, blocked, restoreFailure, prepareTracking,
+    writeDelivery, captureDeliveryWrite, hasMessages, appendMessages, captureMessageWrite,
+    noMessages, prepareRecoveryStatus, summary);
   workflow.connections["Prepare Resumable Delivery Items"] = connect([prepareClaims.name]);
   workflow.connections[prepareClaims.name] = connect([writeClaims.name]);
   workflow.connections[writeClaims.name] = connect([waitClaims.name]);
@@ -409,26 +415,31 @@ return [{json:{...source,recovery_status:errors.length?"pending":"flushed",recov
   const mediaGate = workflow.connections["IF Media Upload Succeeded"];
   mediaGate.main[0] = [{ node: sendGuard.name, type: "main", index: 0 }];
   workflow.connections[sendGuard.name] = connect([sendAllowed.name]);
-  workflow.connections[sendAllowed.name] = connect(["Send WhatsApp Video"], [blocked.name]);
+  workflow.connections[sendAllowed.name] = connect([prepareInFlight.name], [blocked.name]);
+  workflow.connections[prepareInFlight.name] = connect([persistInFlight.name]);
+  workflow.connections[persistInFlight.name] = connect([restoreInFlight.name]);
+  workflow.connections[restoreInFlight.name] = connect(["Send WhatsApp Video"]);
   workflow.connections["Parse Video Send"] = connect(["IF File Send Succeeded"]);
   workflow.connections["Prepare Upload Failure"] = connect(["IF File Send Succeeded"]);
-  workflow.connections["IF File Send Succeeded"] = connect(["Wait Between Recipient Messages"], [restoreFailure.name]);
+  workflow.connections["IF File Send Succeeded"] = connect([readImmediate.name], [restoreFailure.name]);
+  workflow.connections[readImmediate.name] = connect([validateImmediate.name]);
+  workflow.connections[validateImmediate.name] = connect([ifImmediateWrite.name]);
+  workflow.connections[ifImmediateWrite.name] = connect([persistImmediate.name], [restoreImmediate.name]);
+  workflow.connections[persistImmediate.name] = connect([readImmediateBack.name]);
+  workflow.connections[readImmediateBack.name] = connect([confirmImmediate.name]);
+  workflow.connections[confirmImmediate.name] = connect(["Wait Between Recipient Messages"]);
+  workflow.connections[restoreImmediate.name] = connect(["Wait Between Recipient Messages"]);
   workflow.connections[restoreFailure.name] = connect(["Wait Between Recipient Messages"]);
   workflow.connections[blocked.name] = connect(["Wait Between Recipient Messages"]);
   workflow.connections["Loop Through Files"].main[0] = [{ node: prepareTracking.name, type: "main", index: 0 }];
-  workflow.connections[prepareTracking.name] = connect([ensureRecovery.name]);
-  workflow.connections[ensureRecovery.name] = connect([restoreForQueue.name]);
-  workflow.connections[restoreForQueue.name] = connect([storeRecovery.name]);
-  workflow.connections[storeRecovery.name] = connect([restoreTracking.name]);
-  workflow.connections[restoreTracking.name] = connect([writeDelivery.name]);
+  workflow.connections[prepareTracking.name] = connect([writeDelivery.name]);
   workflow.connections[writeDelivery.name] = connect([captureDeliveryWrite.name]);
   workflow.connections[captureDeliveryWrite.name] = connect([hasMessages.name]);
   workflow.connections[hasMessages.name] = connect([appendMessages.name], [noMessages.name]);
   workflow.connections[appendMessages.name] = connect([captureMessageWrite.name]);
   workflow.connections[captureMessageWrite.name] = connect([prepareRecoveryStatus.name]);
   workflow.connections[noMessages.name] = connect([prepareRecoveryStatus.name]);
-  workflow.connections[prepareRecoveryStatus.name] = connect([updateRecovery.name]);
-  workflow.connections[updateRecovery.name] = connect([summary.name]);
+  workflow.connections[prepareRecoveryStatus.name] = connect([summary.name]);
   workflow.connections[summary.name] = connect(["Update Final Send State"]);
   workflow.connections["Update Final Send State"] = connect(["Done: Delivery Send Attempt"]);
 }

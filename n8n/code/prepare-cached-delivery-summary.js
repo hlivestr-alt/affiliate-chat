@@ -15,7 +15,7 @@ const delivered = statuses.filter((status) => ["delivered","read"].includes(stat
 const failed = statuses.filter((status) => status === "failed").length;
 const expected = Number(source.expected_clip_count || 15);
 const now = new Date().toISOString();
-const leadRecord = { ...source, state: accepted === expected ? "files_sent" : failed ? "failed" : "delivery_in_progress", files_expected: String(expected), files_sent: String(sent), files_delivered: String(delivered), files_failed: String(failed), files_sent_at: accepted === expected ? (source.files_sent_at || now) : source.files_sent_at, last_error: failed ? "one_or_more_media_messages_failed" : "", updated_at: now };
+const leadRecord = { ...source, delivery_state: accepted === expected ? "files_sent" : failed ? "failed" : accepted ? "partial" : "delivery_in_progress", files_expected: String(expected), files_sent: String(accepted), files_delivered: String(delivered), files_failed: String(failed), files_sent_at: accepted === expected ? (source.files_sent_at || now) : source.files_sent_at, last_error: failed ? "one_or_more_media_messages_failed" : "", updated_at: now };
 let deliveryWriteError = "";
 let messageWriteError = "";
 try { deliveryWriteError = text($("Batch Write Delivery Results").first().json.error); } catch {}

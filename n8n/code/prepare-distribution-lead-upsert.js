@@ -29,7 +29,8 @@ const HEADERS = [
   "updated_at",
   "wa_id",
   "last_inbound_message_id",
-  "window_expires_at"
+  "window_expires_at",
+  "delivery_state"
 ];
 
 function text(value) {
@@ -110,6 +111,7 @@ const replies = suppliedReplies.length
 ];
 
 record.state = record.state || "interested";
+record.delivery_state = record.delivery_state || "not_started";
 record.files_expected = record.files_expected || "15";
 record.updated_at = now;
 

@@ -39,7 +39,7 @@ const HEADERS = Object.freeze({
     "files_delivered_at", "posted_confirmed_at", "last_whatsapp_message_id",
     "last_inbound_at", "last_intent", "last_intent_confidence",
     "last_error", "updated_at", "wa_id", "last_inbound_message_id",
-    "window_expires_at"
+    "window_expires_at", "delivery_state"
   ],
   delivery: [
     "delivery_key", "conversation_id", "whatsapp_number", "batch_number",
@@ -423,13 +423,13 @@ function patchLeadCapture() {
     throw new Error("Existing lead capture workflow shape changed");
   }
 
-  read.parameters.url = valuesUrl(SHEETS.leads, "A:AE");
+  read.parameters.url = valuesUrl(SHEETS.leads, "A:AF");
   prepare.parameters.jsCode = loadCode("prepare-distribution-lead-upsert.js");
   update.parameters.url =
     `=https://sheets.googleapis.com/v4/spreadsheets/${CFG.spreadsheetId}` +
     `/values/${encodeURIComponent(SHEETS.leads)}!A{{$json.row_number}}%3AAE{{$json.row_number}}` +
     "?valueInputOption=RAW";
-  append.parameters.url = appendUrl(SHEETS.leads, "A:AE");
+  append.parameters.url = appendUrl(SHEETS.leads, "A:AF");
 
   const phase1Names = new Set([
     "Prepare WhatsApp Opt-in Handoff", "IF Needs WhatsApp Opt-in",
@@ -1951,7 +1951,7 @@ for (let index = 1; index < values.length; index += 1) {
   if (changed) {
     const rowNumber = index + 1;
     data.push({
-      range: ${JSON.stringify(SHEETS.leads)} + "!A" + rowNumber + ":AE" + rowNumber,
+      range: ${JSON.stringify(SHEETS.leads)} + "!A" + rowNumber + ":AF" + rowNumber,
       majorDimension: "ROWS",
       values: [row]
     });
@@ -1959,7 +1959,7 @@ for (let index = 1; index < values.length; index += 1) {
 }
 return [{ json: { needs_backfill: data.length > 0, data } }];`;
   const headerData = [
-    { range: `${SHEETS.leads}!A1:AE1`, values: [HEADERS.leads] },
+    { range: `${SHEETS.leads}!A1:AF1`, values: [HEADERS.leads] },
     { range: `${SHEETS.delivery}!A1:R1`, values: [HEADERS.delivery] },
     { range: `${SHEETS.messages}!A1:X1`, values: [HEADERS.messages] },
     { range: `${SHEETS.faq}!A1:F1`, values: [HEADERS.faq] },
@@ -2006,7 +2006,7 @@ return [{ json: { needs_backfill: data.length > 0, data } }];`;
       options: {}
     }),
     google("Read Migrated Leads Header", [460, 0], {
-      url: valuesUrl(SHEETS.leads, "A1:AE"),
+      url: valuesUrl(SHEETS.leads, "A1:AF"),
       options: {}
     }),
     code("Prepare Existing Lead Backfill", [680, 0], backfillCode),
@@ -2024,7 +2024,7 @@ return [{ json: { needs_backfill: data.length > 0, data } }];`;
     }),
     noOp("No Existing Lead Backfill Needed", [1120, 100]),
     google("Read Leads after Backfill", [1340, 0], {
-      url: valuesUrl(SHEETS.leads, "A1:AE"),
+      url: valuesUrl(SHEETS.leads, "A1:AF"),
       options: {}
     }),
     google("Read WhatsApp Message Log Header", [1560, 0], {

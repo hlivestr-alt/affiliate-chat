@@ -7,7 +7,7 @@ const LEAD_HEADERS = [
   "files_delivered_at", "posted_confirmed_at", "last_whatsapp_message_id",
   "last_inbound_at", "last_intent", "last_intent_confidence",
   "last_error", "updated_at", "wa_id", "last_inbound_message_id",
-  "window_expires_at"
+  "window_expires_at", "delivery_state"
 ];
 const HISTORICAL_HEADERS = [
   "affiliate_id", "affiliate_name", "username", "conversation_id",
@@ -106,7 +106,7 @@ if (!batch) {
 const now = new Date().toISOString();
 const record = {
   ...current,
-  state: "delivery_in_progress",
+  delivery_state: "delivery_in_progress",
   batch_number: batch,
   batch_reserved_at: current.batch_reserved_at || now,
   delivery_started_at: current.delivery_started_at || now,

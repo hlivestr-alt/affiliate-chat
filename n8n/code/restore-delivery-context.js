@@ -7,7 +7,7 @@ const LEAD_HEADERS = [
   "files_delivered_at", "posted_confirmed_at", "last_whatsapp_message_id",
   "last_inbound_at", "last_intent", "last_intent_confidence",
   "last_error", "updated_at", "wa_id", "last_inbound_message_id",
-  "window_expires_at"
+  "window_expires_at", "delivery_state"
 ];
 
 function text(value) { return value == null ? "" : String(value).trim(); }
@@ -57,7 +57,10 @@ return [{ json: {
   whatsapp_number: digits(lead.whatsapp_number || lead.wa_id),
   wa_id: digits(lead.wa_id || lead.whatsapp_number),
   tiktok_username: lead.username,
-  delivery_state: lead.state,
+  delivery_state: text(lead.delivery_state) ||
+    (["delivery_in_progress", "partial", "files_sent", "files_delivered", "failed"].includes(text(lead.state))
+      ? text(lead.state)
+      : "not_started"),
   files_expected: String(expectedClipCount),
   expected_clip_count: expectedClipCount,
   test_mode: testMode,

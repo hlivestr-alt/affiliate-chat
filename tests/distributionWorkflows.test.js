@@ -23,7 +23,7 @@ function executeCodeFile(name, nodes, input = [], env = {}, execution = { id: "t
     first: () => ({ json: nodes[nodeName] || {} }),
     item: nodes[`${nodeName}:item`] || { json: nodes[nodeName] || {}, binary: {} }
   });
-  return Function("$", "$input", "$env", "$execution", code)(select, { all: () => input }, env, execution);
+  return Function("$", "$input", "$env", "$execution", "$json", code)(select, { all: () => input }, env, execution, nodes.$json || {});
 }
 
 const LEAD_HEADERS = [
@@ -31,7 +31,7 @@ const LEAD_HEADERS = [
   "opt_in_message_id", "opt_in_sent_at", "opted_in_at", "declined_at", "batch_number", "batch_reserved_at",
   "delivery_started_at", "files_expected", "files_sent", "files_delivered", "files_failed", "files_sent_at",
   "files_delivered_at", "posted_confirmed_at", "last_whatsapp_message_id", "last_inbound_at", "last_intent",
-  "last_intent_confidence", "last_error", "updated_at", "wa_id", "last_inbound_message_id", "window_expires_at"
+  "last_intent_confidence", "last_error", "updated_at", "wa_id", "last_inbound_message_id", "window_expires_at", "delivery_state"
 ];
 
 function values(headers, records) {
@@ -247,8 +247,9 @@ test("delivery sends the supplied intro once before the first video and preserve
   );
   assert.equal(
     workflow.connections["IF Cached Clip Send Authorized"].main[0][0].node,
-    "Send WhatsApp Video"
+    "Prepare In-Flight Send Claim"
   );
+  assert.equal(workflow.connections["Restore Clip after In-Flight Claim"].main[0][0].node, "Send WhatsApp Video");
   assert.match(nodeByName(workflow, "Guard Cached Media Upload").parameters.jsCode, /assignmentMatches/);
   assert.match(nodeByName(workflow, "Guard Cached Clip Send").parameters.jsCode, /assignmentMatches/);
 });
@@ -314,6 +315,44 @@ test("TEST delivery context remains isolated from production folders", () => {
   assert.equal(result[0].json.expected_clip_count, 1);
 });
 
+test("delivery reservation and finalization use the dedicated delivery state", () => {
+  const source = {
+    conversation_id: "wa:state-split", username: "creator", whatsapp_number: "628111",
+    wa_id: "628111", state: "awaiting_username", last_intent: "clarification_pending"
+  };
+  const reserved = executeCodeFile("select-local-batch.js", {
+    "When Executed after Opt-in": source,
+    "Read WhatsApp Leads for Reservation": { values: values(LEAD_HEADERS, [source]) },
+    "Read Historical Assignments": { values: [["affiliate_id"]] },
+    $json: { stdout: "6941\n6942" }
+  }, [], { WHATSAPP_TEST_MODE: "false" });
+  assert.equal(reserved[0].json.state, "awaiting_username");
+  assert.equal(reserved[0].json.last_intent, "clarification_pending");
+  assert.equal(reserved[0].json.delivery_state, "delivery_in_progress");
+
+  const context = {
+    ...reserved[0].json, expected_clip_count: 15, lead_headers: LEAD_HEADERS,
+    delivery_log_values: [["delivery_key", "conversation_id", "batch_number"]]
+  };
+  const results = Array.from({ length: 15 }, (_, index) => ({
+    delivery_row_values: [
+      `key-${index}`, context.conversation_id, context.whatsapp_number, context.batch_number,
+      String(index + 1), `clip-${index + 1}.mp4`, `media-${index}`, `wamid.test.${index}`,
+      "accepted", "1", "", new Date().toISOString(), "", "", "", "", "accepted", "accepted"
+    ]
+  }));
+  const final = executeCodeFile("prepare-cached-delivery-summary.js", {
+    "Restore and Validate Delivery Context": context,
+    "Prepare Batched Delivery Tracking": { results, message_count: 15 },
+    "Batch Write Delivery Results": {},
+    "Append Message Results Batch": {}
+  });
+  assert.equal(final[0].json.state, "awaiting_username");
+  assert.equal(final[0].json.last_intent, "clarification_pending");
+  assert.equal(final[0].json.delivery_state, "files_sent");
+  assert.equal(final[0].json.files_sent, "15");
+});
+
 test("resume skips accepted, uncertain, and pre-send-claimed clips", () => {
   const deliveryHeaders = ["delivery_key","conversation_id","whatsapp_number","batch_number","file_index","file_name","media_id","whatsapp_message_id","state","attempts","uploaded_at","sent_at","delivered_at","failed_at","last_error","updated_at","send_state","delivery_state"];
   const messageHeaders = ["whatsapp_message_id","recipient_number","message_type","template_name","source_workflow","source_reference","api_status","accepted_at","current_status","status_timestamp","conversation_json","pricing_json","errors_json","error_code","error_title","error_message","error_details","processed_statuses","status_history_json","updated_at","direction","message_payload_json","send_state","delivery_state"];
@@ -334,14 +373,16 @@ test("resume skips accepted, uncertain, and pre-send-claimed clips", () => {
   assert.equal(result[0].json.remaining_clip_count, 1);
 });
 
-test("expired windows are blocked and post-loop logging failures cannot interrupt Meta sends", () => {
+test("expired windows are blocked and post-send persistence gates the next Meta send", () => {
   const workflow = load("affiliate-whatsapp-file-delivery.json");
   const uploadGuard = nodeByName(workflow, "Guard Cached Media Upload").parameters.jsCode;
   const sendGuard = nodeByName(workflow, "Guard Cached Clip Send").parameters.jsCode;
   assert.match(uploadGuard, /Date\.now\(\)\s*<\s*expires/);
   assert.match(sendGuard, /Date\.now\(\)\s*<\s*expires/);
   assert.match(uploadGuard, /ZERO_CHARGE_MODE/);
-  assert.equal(workflow.connections["IF Cached Clip Send Authorized"].main[0][0].node, "Send WhatsApp Video");
+  assert.equal(workflow.connections["IF Cached Clip Send Authorized"].main[0][0].node, "Prepare In-Flight Send Claim");
+  assert.equal(workflow.connections["IF File Send Succeeded"].main[0][0].node, "Read Delivery Row after Meta Success");
+  assert.equal(workflow.connections["Confirm Successful Clip Durable"].main[0][0].node, "Wait Between Recipient Messages");
   assert.equal(workflow.connections["Loop Through Files"].main[0][0].node, "Prepare Batched Delivery Tracking");
   assert.equal(nodeByName(workflow, "Batch Write Delivery Results").continueOnFail, true);
   assert.equal(nodeByName(workflow, "Append Message Results Batch").continueOnFail, true);

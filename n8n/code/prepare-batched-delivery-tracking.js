@@ -9,7 +9,17 @@ const deliveryUpdates = results.map((result) => ({
   majorDimension: "ROWS",
   values: [DELIVERY_HEADERS.map((_, index) => text(result.delivery_row_values[index]))]
 }));
-const messageRows = results.filter((result) => result.send_success && result.whatsapp_message_id).map((result) => {
+const successfulMessageResults = [];
+const successfulByKey = new Map();
+for (const result of results.filter((item) => item.send_success && item.whatsapp_message_id && item.message_log_append_required !== false)) {
+  const prior = successfulByKey.get(result.delivery_key);
+  if (prior && prior.whatsapp_message_id !== result.whatsapp_message_id) throw new Error(`successful_message_id_conflict:${result.delivery_key}`);
+  if (!prior) {
+    successfulByKey.set(result.delivery_key, result);
+    successfulMessageResults.push(result);
+  }
+}
+const messageRows = successfulMessageResults.map((result) => {
   const record = {
     whatsapp_message_id: result.whatsapp_message_id,
     recipient_number: result.whatsapp_number,

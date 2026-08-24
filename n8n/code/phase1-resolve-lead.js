@@ -71,10 +71,14 @@ record.updated_at = now;
 
 const hasValidUsername = validUsername(normalizeUsername(record.username));
 const explicitContinue = /^(?:yes|iya|lanjut|continue|kirim|kirim video|mau video|mau clips?)\b/i.test(lower);
+const legacyDeliveryStates = new Set(["delivery_in_progress", "partial", "files_sent", "files_delivered", "failed"]);
+const currentDeliveryState = text(current?.delivery_state) ||
+  (legacyDeliveryStates.has(text(current?.state)) ? text(current?.state) : "not_started");
+const deliveryComplete = ["files_sent", "files_delivered"].includes(currentDeliveryState);
 const ready =
   (interest && validUsername(username)) ||
   (current?.state === "awaiting_username" && validUsername(username)) ||
-  (explicitContinue && hasValidUsername && ["awaiting_confirmation", "distribution_pending", "waiting_for_affiliate_message"].includes(current?.state));
+  (explicitContinue && hasValidUsername && !deliveryComplete && ["awaiting_confirmation", "distribution_pending", "waiting_for_affiliate_message"].includes(current?.state));
 
 // General reply logging is intentionally paused. The lead state is the durable
 // source of truth for whether a clarification has already been issued.
