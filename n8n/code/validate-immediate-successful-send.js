@@ -1,15 +1,22 @@
 const source = $("Parse Video Send").item.json;
 const text = (value) => value == null ? "" : String(value).trim();
+const digits = (value) => text(value).replace(/\D/g, "");
 const validMessageId = (value) => /^wamid\.[A-Za-z0-9_+=\/-]{12,}$/.test(text(value));
+const normalizeDeliveryRow = (values) => {
+  if (!Array.isArray(values) || values.length === 0 || values.length > 18) throw new Error("immediate_success_persistence_row_missing");
+  const row = values.map(text);
+  while (row.length < 18) row.push("");
+  return row;
+};
 const records = (values) => {
   const rows = Array.isArray(values) ? values : [];
   const headers = (rows[0] || []).map(text);
   return rows.slice(1).map((values) => Object.fromEntries(headers.map((name, index) => [name, text(values[index])])));
 };
 if (source.send_success !== true || !validMessageId(source.whatsapp_message_id)) throw new Error("immediate_success_persistence_requires_valid_message_id");
-const row = Array.isArray($json.values?.[0]) ? $json.values[0].map(text) : [];
-if (row.length < 18) throw new Error("immediate_success_persistence_row_missing");
-const identityMatches = row[0] === text(source.delivery_key) && row[1] === text(source.conversation_id) && row[3] === text(source.batch_number) && Number(row[4]) === Number(source.file_index) && row[5] === text(source.file_name);
+const row = normalizeDeliveryRow($json.values?.[0]);
+const expectedPhone = digits(source.whatsapp_number || source.wa_id || source.recipient_number);
+const identityMatches = row[0] === text(source.delivery_key) && row[1] === text(source.conversation_id) && (!expectedPhone || digits(row[2]) === expectedPhone) && row[3] === text(source.batch_number) && Number(row[4]) === Number(source.file_index) && row[5] === text(source.file_name);
 if (!identityMatches) throw new Error("immediate_success_persistence_identity_conflict");
 if (Number(row[9] || 0) !== Number(source.attempts || 0)) throw new Error("immediate_success_persistence_attempt_conflict");
 const existingMessageId = row[7];
